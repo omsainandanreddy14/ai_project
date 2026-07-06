@@ -8,6 +8,9 @@ Features:
 - Video Mode: Upload and analyze exercise videos
 - WebCam Mode: Real-time exercise detection and rep counting
 - Diet Plan Generator: Personalized nutrition plans using Gemini AI
+
+Version: 2.0 (Deployment-Optimized)
+Updated: 2026-07-06 - Fixed video/webcam UI for cloud deployment
 """
 
 import streamlit as st

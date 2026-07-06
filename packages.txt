@@ -1,3 +1,2 @@
-libgl1
-libglib2.0-0
-ffmpeg
+# No extra apt packages are required for this app.
+# Keeping this file minimal avoids dependency conflicts on Streamlit Cloud.

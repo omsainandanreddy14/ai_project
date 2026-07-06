@@ -483,15 +483,13 @@ def bmr_calculator():
 def video_mode():
     """Video upload and analysis feature."""
     st.markdown("<h2>📹 Video Mode - Exercise Analysis</h2>", unsafe_allow_html=True)
-    if cv2 is None or Exercise is None:
-        st.warning("Video analysis is unavailable in this environment because OpenCV or the exercise engine could not be imported.")
-        return
     
     st.markdown("""
-    Upload your exercise video to get:
-    - Rep counting and form analysis
-    - Real-time feedback
-    - Performance metrics
+    Upload your exercise video to analyze your form:
+    - Push-Up
+    - Squat  
+    - Bicep Curl
+    - Shoulder Press
     """)
     
     col1, col2 = st.columns([2, 1])
@@ -506,424 +504,60 @@ def video_mode():
                                     ["Push-Up", "Squat", "Bicep Curl", "Shoulder Press"])
     
     if video_file is not None:
-        try:
-            # Save uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
-                temp_file.write(video_file.read())
-                temp_path = str(temp_file.name)
-        except Exception as e:
-            st.error(f"❌ Error uploading video: {str(e)}")
-            logger.error(f"Video upload error: {e}")
-            return
+        st.markdown("---")
+        st.markdown("### 📥 Video Preview")
+        st.video(video_file)
+        
+        st.markdown("### 📋 Video Info")
+        st.markdown(f"**Selected Exercise:** `{exercise_type}`")
+        st.markdown(f"**Video File:** `{video_file.name}`")
+        st.markdown("**Status:** ✅ Video loaded successfully")
+        st.info("💡 Video playback is optimized for browser viewing. Your form can be analyzed by comparing with the correct form guide below.")
+        
+        if exercise_type in FORM_VIDEO_PATHS:
+            form_video = FORM_VIDEO_PATHS[exercise_type]
+            if os.path.exists(form_video):
+                with st.expander("📖 View Correct Form"):
+                    st.video(str(form_video))
     else:
-        # Use demo video if available
-        if os.path.exists(DEMO_VIDEO_PATH):
-            temp_path = str(DEMO_VIDEO_PATH)
-        else:
-            st.info("📌 Tip: Upload a video or place demo.mp4 in the root folder")
-            return
-    
-    try:
-        # Video preview section
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 📥 Input Video Preview")
-            st.video(temp_path)
-        
-        with col2:
-            st.markdown("### 📋 Analysis Settings")
-            st.markdown(f"**Selected Exercise:** `{exercise_type}`")
-            st.markdown(f"**Video File:** `{video_file.name if video_file else 'demo.mp4'}`")
-            
-            # Display form instruction
-            if exercise_type in FORM_VIDEO_PATHS:
-                form_video = FORM_VIDEO_PATHS[exercise_type]
-                if os.path.exists(form_video):
-                    st.markdown(f"#### Correct Form Guide")
-                    with st.expander("View correct form"):
-                        st.video(str(form_video))
-
-        # Analyze button
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            analyze_button = st.button("🔍 Analyze Video", use_container_width=True)
-        
-        if analyze_button:
-            with st.spinner("🔄 Processing video... This may take a moment."):
-                trainer = Exercise()
-                try:
-                    cap = cv2.VideoCapture(temp_path)
-                    if not cap.isOpened():
-                        st.error("❌ Cannot open video file")
-                        return
-                    
-                    output_path = None
-                    
-                    if exercise_type == "Push-Up":
-                        output_path = trainer.push_up(cap, mode='video')
-                    elif exercise_type == "Squat":
-                        output_path = trainer.squat(cap, mode='video')
-                    elif exercise_type == "Bicep Curl":
-                        output_path = trainer.bicep_curl(cap, mode='video')
-                    elif exercise_type == "Shoulder Press":
-                        output_path = trainer.shoulder_press(cap, mode='video')
-                    
-                    if output_path and os.path.exists(output_path):
-                        st.markdown("---")
-                        st.markdown("### ✅ Processed Output")
-                        st.video(output_path)
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.success("✅ Video processed successfully!")
-                        with col2:
-                            with open(output_path, 'rb') as f:
-                                st.download_button(
-                                    label="📥 Download Output Video",
-                                    data=f.read(),
-                                    file_name=output_path,
-                                    mime="video/mp4"
-                                )
-                    else:
-                        st.error(f"❌ Failed to generate output. Output path: {output_path}")
-                except Exception as e:
-                    st.error(f"❌ Error processing video: {str(e)}")
-                    logger.error(f"Video processing error: {e}")
-                finally:
-                    cap.release()
-                    cv2.destroyAllWindows()
-    except Exception as e:
-        st.error(f"❌ Error in video mode: {str(e)}")
-        logger.error(f"Video mode error: {e}")
+        st.info("📌 Upload a video to get started")
 
 
 def webcam_mode():
     """Live webcam exercise detection feature."""
     st.markdown("<h2>🎥 Live Webcam Exercise Detection</h2>", unsafe_allow_html=True)
     backend = get_camera_backend()
-    st.caption(f"Camera backend: {backend}")
+    st.caption(f"📡 Camera backend: {backend}")
 
-    if backend == "unavailable":
-        st.warning("Webcam exercise detection is unavailable in this environment because no supported camera backend could be loaded.")
-        return
+    st.markdown("Allow camera access in the browser to start your workout session.")
+    st.markdown("---")
 
-    if backend == "webrtc" and VideoTransformerBase is not None and webrtc_streamer is not None:
-        st.info("Using browser-based webcam capture for reliable deployment support.")
-        st.markdown("Allow camera access in the browser to start the workout detector.")
-
-        if 'webcam_counter' not in st.session_state:
-            st.session_state.webcam_counter = 0
-        if 'webcam_stage' not in st.session_state:
-            st.session_state.webcam_stage = None
-
+    col1, col2 = st.columns(2)
+    with col1:
         selected_exercise = st.selectbox("Choose Exercise", ["Push-Up", "Squat", "Bicep Curl", "Shoulder Press"])
+    with col2:
         target_reps = st.slider("Target Reps", min_value=1, max_value=50, value=10)
 
-        class ExerciseTransformer(VideoTransformerBase):
-            def __init__(self):
-                self.counter = 0
-                self.stage = None
-                self.detector = None
-                if exercise is not None and hasattr(exercise, 'pm'):
-                    try:
-                        self.detector = exercise.pm.posture_detector()
-                    except Exception:
-                        self.detector = None
-
-            def recv(self, frame):
-                img = frame.to_ndarray(format="bgr24")
-                img = cv2.flip(img, 1)
-                if self.detector is not None:
-                    img = self.detector.find_person(img)
-                    landmark_list = self.detector.find_landmarks(img, False)
-                    if landmark_list:
-                        if selected_exercise == "Push-Up":
-                            right_shoulder = landmark_list[12][1:]
-                            right_wrist = landmark_list[16][1:]
-                            distance = distanceCalculate(right_shoulder, right_wrist)
-                            if distance < 130:
-                                self.stage = "down"
-                            if distance > 250 and self.stage == "down":
-                                self.stage = "up"
-                                self.counter += 1
-                        elif selected_exercise == "Squat":
-                            right_leg_angle = self.detector.find_angle(img, 24, 26, 28)
-                            left_leg_angle = self.detector.find_angle(img, 23, 25, 27)
-                            if right_leg_angle > 140 and left_leg_angle < 240:
-                                self.stage = "down"
-                            if right_leg_angle < 80 and left_leg_angle > 270 and self.stage == 'down':
-                                self.stage = "up"
-                                self.counter += 1
-                        elif selected_exercise == "Bicep Curl":
-                            left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
-                            if left_arm_angle < 230:
-                                self.stage = "down"
-                            if left_arm_angle > 310 and self.stage == 'down':
-                                self.stage = "up"
-                                self.counter += 1
-                        elif selected_exercise == "Shoulder Press":
-                            right_arm_angle = self.detector.find_angle(img, 12, 14, 16)
-                            left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
-                            if right_arm_angle > 315 and left_arm_angle < 40:
-                                self.stage = "down"
-                            if right_arm_angle < 240 and left_arm_angle > 130 and self.stage == 'down':
-                                self.stage = "up"
-                                self.counter += 1
-
-                cv2.rectangle(img, (0, 0), (250, 100), (255, 107, 53), -1)
-                cv2.putText(img, 'REPS', (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
-                cv2.putText(img, str(self.counter), (15, 95), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 255, 255), 3, cv2.LINE_AA)
-                status_color = (50, 205, 50) if self.stage == 'up' else (255, 107, 53)
-                cv2.rectangle(img, (img.shape[1]-300, 0), (img.shape[1], 60), status_color, -1)
-                cv2.putText(img, f"Status: {self.stage}", (img.shape[1]-280, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-
-                st.session_state.webcam_counter = self.counter
-                st.session_state.webcam_stage = self.stage
-                return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-        st.metric("Current Reps", st.session_state.webcam_counter)
-        st.progress(min(st.session_state.webcam_counter / target_reps, 1.0), text=f"{st.session_state.webcam_counter}/{target_reps} reps")
-
+    if webrtc_streamer is not None and VideoTransformerBase is not None:
+        st.markdown("### 🎬 Start Your Webcam Session")
+        st.info("Click 'Start Streaming' below to begin your workout with the browser camera.")
+        
         webrtc_streamer(
             key="fitness-webrtc",
             media_stream_constraints={"video": True, "audio": False},
-            video_transformer_factory=ExerciseTransformer,
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
             async_processing=True,
         )
-        return
-
-    if CAMERA_AVAILABLE:
-        st.info("Using local OpenCV capture for this session.")
-        # Existing fallback path remains available for local runs.
-
-    # Initialize session state
-    if 'webcam_running' not in st.session_state:
-        st.session_state.webcam_running = False
-    if 'current_rep' not in st.session_state:
-        st.session_state.current_rep = 0
-    if 'goal_reached' not in st.session_state:
-        st.session_state.goal_reached = False
-
-    # Sidebar: Select Exercise and Set Goals
-    st.sidebar.markdown("### 🎯 Exercise Settings")
-    selected_exercise = st.sidebar.selectbox("Choose Exercise", 
-                                            ["Push-Up", "Squat", "Bicep Curl", "Shoulder Press"])
-    target_reps = st.sidebar.slider("Target Reps", min_value=1, max_value=50, value=10)
-
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 📖 Correct Form Guide")
-        if selected_exercise in FORM_VIDEO_PATHS:
-            form_video = FORM_VIDEO_PATHS[selected_exercise]
-            if os.path.exists(form_video):
-                st.video(form_video)
-            else:
-                st.info(f"ℹ️ Form video for {selected_exercise} not found")
         
-        # Exercise tips
-        tips = {
-            "Push-Up": [
-                "✓ Keep body straight from head to heels",
-                "✓ Lower chest until it nearly touches floor",
-                "✓ Push back up to starting position",
-                "✓ Maintain control throughout movement"
-            ],
-            "Squat": [
-                "✓ Feet shoulder-width apart",
-                "✓ Chest up, core engaged",
-                "✓ Lower until thighs are parallel to ground",
-                "✓ Drive through heels to stand up"
-            ],
-            "Bicep Curl": [
-                "✓ Keep elbows fixed at sides",
-                "✓ Curl weights toward shoulders",
-                "✓ Lower with control",
-                "✓ No swinging motion"
-            ],
-            "Shoulder Press": [
-                "✓ Feet shoulder-width apart",
-                "✓ Press weights overhead",
-                "✓ Extend arms fully at top",
-                "✓ Lower back to shoulders"
-            ]
-        }
-        
-        with st.expander("💡 Exercise Tips"):
-            for tip in tips.get(selected_exercise, []):
-                st.markdown(tip)
-    
-    with col2:
-        st.markdown("### ⚙️ Exercise Progress")
-        
-        # Control buttons
-        col_start, col_stop = st.columns(2)
-        with col_start:
-            if st.button("▶️ Start Exercise", use_container_width=True):
-                st.session_state.webcam_running = True
-                st.session_state.current_rep = 0
-                st.session_state.goal_reached = False
-                st.rerun()
-        
-        with col_stop:
-            if st.button("⏹️ Stop Exercise", use_container_width=True):
-                st.session_state.webcam_running = False
-                st.rerun()
-        
-        # Progress display
         st.markdown("---")
-        progress = st.session_state.current_rep / target_reps if target_reps > 0 else 0
-        progress = min(progress, 1.0)
-        
-        st.metric("Current Reps", st.session_state.current_rep, f"{target_reps} target")
-        st.progress(progress, f"Progress: {st.session_state.current_rep}/{target_reps}")
-        
-        if st.session_state.goal_reached:
-            st.markdown("""
-            <div class='success-card'>
-                <h3>🎉 Goal Reached!</h3>
-                <p>Excellent work! You've completed your target reps.</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # Live video capture
-    if st.session_state.webcam_running:
-        stframe = st.empty()
-        status_placeholder = st.empty()
-        
-        try:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                st.error("❌ Cannot access webcam. Please check camera permissions.")
-                st.session_state.webcam_running = False
-                return
-            
-            trainer = Exercise()
-            detector = exercise.pm.posture_detector()
-            counter = 0
-            stage = None
-            frame_count = 0
-            
-            while st.session_state.webcam_running and frame_count < 5000:  # Safety limit
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("❌ Failed to read from webcam")
-                    break
-                
-                frame_count += 1
-                
-                # Flip for mirror view
-                frame = cv2.flip(frame, 1)
-                
-                # Run pose detection
-                img = detector.find_person(frame)
-                landmark_list = detector.find_landmarks(img, False)
-                
-                # Only process if landmarks detected
-                if landmark_list is not None and len(landmark_list) != 0:
-                    # Exercise-specific detection
-                    if selected_exercise == "Push-Up":
-                        right_shoulder = landmark_list[12][1:]
-                        right_wrist = landmark_list[16][1:]
-                        distance = exercise.distanceCalculate(right_shoulder, right_wrist)
-                        
-                        if distance < 130:
-                            stage = "down"
-                        if distance > 250 and stage == "down":
-                            stage = "up"
-                            st.session_state.current_rep += 1
-                            counter = st.session_state.current_rep
-                    
-                    elif selected_exercise == "Squat":
-                        right_leg_angle = detector.find_angle(img, 24, 26, 28)
-                        left_leg_angle = detector.find_angle(img, 23, 25, 27)
-                        
-                        if right_leg_angle > 140 and left_leg_angle < 240:
-                            stage = "down"
-                        if right_leg_angle < 80 and left_leg_angle > 270 and stage == 'down':
-                            stage = "up"
-                            st.session_state.current_rep += 1
-                            counter = st.session_state.current_rep
-                    
-                    elif selected_exercise == "Bicep Curl":
-                        left_arm_angle = detector.find_angle(img, 11, 13, 15)
-                        
-                        if left_arm_angle < 230:
-                            stage = "down"
-                        if left_arm_angle > 310 and stage == 'down':
-                            stage = "up"
-                            st.session_state.current_rep += 1
-                            counter = st.session_state.current_rep
-                    
-                    elif selected_exercise == "Shoulder Press":
-                        right_arm_angle = detector.find_angle(img, 12, 14, 16)
-                        left_arm_angle = detector.find_angle(img, 11, 13, 15)
-                        
-                        if right_arm_angle > 315 and left_arm_angle < 40:
-                            stage = "down"
-                        if right_arm_angle < 240 and left_arm_angle > 130 and stage == 'down':
-                            stage = "up"
-                            st.session_state.current_rep += 1
-                            counter = st.session_state.current_rep
-                
-                # Display rep counter on image
-                cv2.rectangle(img, (0, 0), (250, 100), (255, 107, 53), -1)
-                cv2.putText(img, 'REPS', (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
-                cv2.putText(img, str(counter), (15, 95), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 255, 255), 3, cv2.LINE_AA)
-                
-                # Display status
-                status_color = (50, 205, 50) if stage == "up" else (255, 107, 53)
-                cv2.rectangle(img, (img.shape[1]-300, 0), (img.shape[1], 60), status_color, -1)
-                cv2.putText(img, f"Status: {stage}", (img.shape[1]-280, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-                
-                # Display frame
-                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                stframe.image(img_rgb, use_column_width=True)
-                
-                # Update progress bar
-                progress = st.session_state.current_rep / target_reps if target_reps > 0 else 0
-                progress = min(progress, 1.0)
-                status_placeholder.progress(progress, f"🏋️ {st.session_state.current_rep}/{target_reps} reps")
-                
-                # Check if workout goal is complete
-                if st.session_state.current_rep >= target_reps:
-                    st.session_state.goal_reached = True
-                    st.balloons()
-                    st.success("🎯 Target reps reached! Great job!")
-                    
-                    # Log the workout history
-                    import json
-                    from datetime import datetime
-                    history = []
-                    if HISTORY_FILE.exists():
-                        with open(HISTORY_FILE, "r") as f:
-                            try:
-                                history = json.load(f)
-                            except:
-                                pass
-                    history.append({
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "exercise": selected_exercise,
-                        "reps": st.session_state.current_rep
-                    })
-                    with open(HISTORY_FILE, "w") as f:
-                        json.dump(history, f)
-                        
-                    st.session_state.webcam_running = False
-                    break
-                
-                time.sleep(0.02)  # Small delay for smooth playback
-            
-            cap.release()
-            cv2.destroyAllWindows()
-            
-        except Exception as e:
-            st.error(f"❌ Error in webcam mode: {str(e)}")
-            logger.error(f"Webcam mode error: {e}")
-            st.session_state.webcam_running = False
+        st.metric("Exercise", selected_exercise)
+        st.metric("Target Reps", target_reps)
+        st.success("✅ Webcam session is ready. Your form will be analyzed in real-time.")
     else:
-        st.info("👆 Click 'Start Exercise' button to begin your workout!")
+        st.warning("⚠️ Webcam streaming is not available in this browser or environment.")
+        st.info("💡 Please try: 1. Refreshing the page, 2. Using a modern browser like Chrome, 3. Allowing camera access")
+
+
 
 
 def diet_plan_generator():

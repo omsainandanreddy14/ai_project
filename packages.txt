@@ -1,2 +1,0 @@
-# No extra apt packages are required for this app.
-# Keeping this file minimal avoids dependency conflicts on Streamlit Cloud.

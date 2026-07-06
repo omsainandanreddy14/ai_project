@@ -3,5 +3,5 @@ opencv-python-headless
 numpy
 pandas
 matplotlib
-mediapipe<0.10.30
+mediapipe>=0.10.30
 google-generativeai

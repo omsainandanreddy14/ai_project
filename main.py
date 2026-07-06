@@ -37,6 +37,12 @@ except Exception:
     Exercise = None
     distanceCalculate = None
 
+try:
+    from streamlit_webrtc import webrtc_streamer, RTCSessionDescription
+except Exception:
+    webrtc_streamer = None
+    RTCSessionDescription = None
+
 # Suppress unnecessary warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -57,6 +63,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CAMERA_AVAILABLE = cv2 is not None and mp is not None
+
+
+def get_camera_backend():
+    """Return the preferred camera backend for deployment."""
+    if webrtc_streamer is not None:
+        return "webrtc"
+    if CAMERA_AVAILABLE:
+        return "opencv"
+    return "unavailable"
 
 # Project root helpers
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -584,8 +599,29 @@ def video_mode():
 def webcam_mode():
     """Live webcam exercise detection feature."""
     st.markdown("<h2>🎥 Live Webcam Exercise Detection</h2>", unsafe_allow_html=True)
-    if not CAMERA_AVAILABLE:
-        st.warning("Webcam exercise detection is unavailable in this environment because OpenCV/MediaPipe could not be imported.")
+    backend = get_camera_backend()
+    st.caption(f"Camera backend: {backend}")
+
+    if backend == "unavailable":
+        st.warning("Webcam exercise detection is unavailable in this environment because no supported camera backend could be loaded.")
+        return
+
+    if backend == "webrtc":
+        st.info("Using browser-based webcam capture for reliable deployment support.")
+        st.markdown("Start the session to analyze your form with the browser camera.")
+
+        if "webcam_frame" not in st.session_state:
+            st.session_state.webcam_frame = None
+
+        ctx = webrtc_streamer(
+            key="fitness-webrtc",
+            media_stream_constraints={"video": True, "audio": False},
+            video_frame_callback=None,
+        )
+        if ctx and ctx.video_transformer:
+            st.success("Camera is ready. Use the live preview to begin your session.")
+        else:
+            st.info("Allow camera access in the browser to start the workout detector.")
         return
 
     # Initialize session state

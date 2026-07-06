@@ -17,6 +17,14 @@ class MainAppTests(unittest.TestCase):
         resolved = main_module.resolve_project_path("main.py")
         self.assertEqual(resolved, ROOT / "main.py")
 
+    def test_get_camera_backend_prefers_webrtc(self):
+        original_webrtc = main_module.webrtc_streamer
+        main_module.webrtc_streamer = object()
+        try:
+            self.assertEqual(main_module.get_camera_backend(), "webrtc")
+        finally:
+            main_module.webrtc_streamer = original_webrtc
+
 
 if __name__ == "__main__":
     unittest.main()

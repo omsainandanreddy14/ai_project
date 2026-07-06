@@ -17,6 +17,8 @@ import time
 import logging
 import warnings
 from pathlib import Path
+import numpy as np
+import av
 
 try:
     import cv2
@@ -38,10 +40,10 @@ except Exception:
     distanceCalculate = None
 
 try:
-    from streamlit_webrtc import webrtc_streamer, RTCSessionDescription
+    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 except Exception:
     webrtc_streamer = None
-    RTCSessionDescription = None
+    VideoTransformerBase = None
 
 # Suppress unnecessary warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -481,8 +483,8 @@ def bmr_calculator():
 def video_mode():
     """Video upload and analysis feature."""
     st.markdown("<h2>📹 Video Mode - Exercise Analysis</h2>", unsafe_allow_html=True)
-    if not CAMERA_AVAILABLE:
-        st.warning("Video analysis is unavailable in this environment because OpenCV/MediaPipe could not be imported.")
+    if cv2 is None or Exercise is None:
+        st.warning("Video analysis is unavailable in this environment because OpenCV or the exercise engine could not be imported.")
         return
     
     st.markdown("""
@@ -606,23 +608,94 @@ def webcam_mode():
         st.warning("Webcam exercise detection is unavailable in this environment because no supported camera backend could be loaded.")
         return
 
-    if backend == "webrtc":
+    if backend == "webrtc" and VideoTransformerBase is not None and webrtc_streamer is not None:
         st.info("Using browser-based webcam capture for reliable deployment support.")
-        st.markdown("Start the session to analyze your form with the browser camera.")
+        st.markdown("Allow camera access in the browser to start the workout detector.")
 
-        if "webcam_frame" not in st.session_state:
-            st.session_state.webcam_frame = None
+        if 'webcam_counter' not in st.session_state:
+            st.session_state.webcam_counter = 0
+        if 'webcam_stage' not in st.session_state:
+            st.session_state.webcam_stage = None
 
-        ctx = webrtc_streamer(
+        selected_exercise = st.selectbox("Choose Exercise", ["Push-Up", "Squat", "Bicep Curl", "Shoulder Press"])
+        target_reps = st.slider("Target Reps", min_value=1, max_value=50, value=10)
+
+        class ExerciseTransformer(VideoTransformerBase):
+            def __init__(self):
+                self.counter = 0
+                self.stage = None
+                self.detector = None
+                if exercise is not None and hasattr(exercise, 'pm'):
+                    try:
+                        self.detector = exercise.pm.posture_detector()
+                    except Exception:
+                        self.detector = None
+
+            def recv(self, frame):
+                img = frame.to_ndarray(format="bgr24")
+                img = cv2.flip(img, 1)
+                if self.detector is not None:
+                    img = self.detector.find_person(img)
+                    landmark_list = self.detector.find_landmarks(img, False)
+                    if landmark_list:
+                        if selected_exercise == "Push-Up":
+                            right_shoulder = landmark_list[12][1:]
+                            right_wrist = landmark_list[16][1:]
+                            distance = distanceCalculate(right_shoulder, right_wrist)
+                            if distance < 130:
+                                self.stage = "down"
+                            if distance > 250 and self.stage == "down":
+                                self.stage = "up"
+                                self.counter += 1
+                        elif selected_exercise == "Squat":
+                            right_leg_angle = self.detector.find_angle(img, 24, 26, 28)
+                            left_leg_angle = self.detector.find_angle(img, 23, 25, 27)
+                            if right_leg_angle > 140 and left_leg_angle < 240:
+                                self.stage = "down"
+                            if right_leg_angle < 80 and left_leg_angle > 270 and self.stage == 'down':
+                                self.stage = "up"
+                                self.counter += 1
+                        elif selected_exercise == "Bicep Curl":
+                            left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
+                            if left_arm_angle < 230:
+                                self.stage = "down"
+                            if left_arm_angle > 310 and self.stage == 'down':
+                                self.stage = "up"
+                                self.counter += 1
+                        elif selected_exercise == "Shoulder Press":
+                            right_arm_angle = self.detector.find_angle(img, 12, 14, 16)
+                            left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
+                            if right_arm_angle > 315 and left_arm_angle < 40:
+                                self.stage = "down"
+                            if right_arm_angle < 240 and left_arm_angle > 130 and self.stage == 'down':
+                                self.stage = "up"
+                                self.counter += 1
+
+                cv2.rectangle(img, (0, 0), (250, 100), (255, 107, 53), -1)
+                cv2.putText(img, 'REPS', (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.putText(img, str(self.counter), (15, 95), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 255, 255), 3, cv2.LINE_AA)
+                status_color = (50, 205, 50) if self.stage == 'up' else (255, 107, 53)
+                cv2.rectangle(img, (img.shape[1]-300, 0), (img.shape[1], 60), status_color, -1)
+                cv2.putText(img, f"Status: {self.stage}", (img.shape[1]-280, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
+                st.session_state.webcam_counter = self.counter
+                st.session_state.webcam_stage = self.stage
+                return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+        st.metric("Current Reps", st.session_state.webcam_counter)
+        st.progress(min(st.session_state.webcam_counter / target_reps, 1.0), text=f"{st.session_state.webcam_counter}/{target_reps} reps")
+
+        webrtc_streamer(
             key="fitness-webrtc",
             media_stream_constraints={"video": True, "audio": False},
-            video_frame_callback=None,
+            video_transformer_factory=ExerciseTransformer,
+            async_processing=True,
         )
-        if ctx and ctx.video_transformer:
-            st.success("Camera is ready. Use the live preview to begin your session.")
-        else:
-            st.info("Allow camera access in the browser to start the workout detector.")
         return
+
+    if CAMERA_AVAILABLE:
+        st.info("Using local OpenCV capture for this session.")
+        # Existing fallback path remains available for local runs.
 
     # Initialize session state
     if 'webcam_running' not in st.session_state:

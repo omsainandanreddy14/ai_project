@@ -11,17 +11,31 @@ Features:
 """
 
 import streamlit as st
-import cv2
 import tempfile
-import ExerciseAiTrainer as exercise
 import os
 import time
-import mediapipe as mp
 import logging
 import warnings
 from pathlib import Path
-from ExerciseAiTrainer import Exercise
-from AiTrainer_utils import distanceCalculate
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    import mediapipe as mp
+except ImportError:
+    mp = None
+
+try:
+    import ExerciseAiTrainer as exercise
+    from ExerciseAiTrainer import Exercise
+    from AiTrainer_utils import distanceCalculate
+except Exception:
+    exercise = None
+    Exercise = None
+    distanceCalculate = None
 
 # Suppress unnecessary warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -41,6 +55,8 @@ except ImportError:
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+CAMERA_AVAILABLE = cv2 is not None and mp is not None
 
 # Project root helpers
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -450,6 +466,9 @@ def bmr_calculator():
 def video_mode():
     """Video upload and analysis feature."""
     st.markdown("<h2>📹 Video Mode - Exercise Analysis</h2>", unsafe_allow_html=True)
+    if not CAMERA_AVAILABLE:
+        st.warning("Video analysis is unavailable in this environment because OpenCV/MediaPipe could not be imported.")
+        return
     
     st.markdown("""
     Upload your exercise video to get:
@@ -565,6 +584,9 @@ def video_mode():
 def webcam_mode():
     """Live webcam exercise detection feature."""
     st.markdown("<h2>🎥 Live Webcam Exercise Detection</h2>", unsafe_allow_html=True)
+    if not CAMERA_AVAILABLE:
+        st.warning("Webcam exercise detection is unavailable in this environment because OpenCV/MediaPipe could not be imported.")
+        return
 
     # Initialize session state
     if 'webcam_running' not in st.session_state:

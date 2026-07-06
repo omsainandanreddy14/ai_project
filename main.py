@@ -23,11 +23,6 @@ from pathlib import Path
 import numpy as np
 
 try:
-    import av
-except ImportError:
-    av = None
-
-try:
     import cv2
 except ImportError:
     cv2 = None

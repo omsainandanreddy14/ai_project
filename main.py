@@ -19,6 +19,7 @@ import time
 import mediapipe as mp
 import logging
 import warnings
+from pathlib import Path
 from ExerciseAiTrainer import Exercise
 from AiTrainer_utils import distanceCalculate
 
@@ -32,17 +33,32 @@ try:
 except ImportError:
     genai = None
 
+try:
+    from google import genai as google_genai
+except ImportError:
+    google_genai = None
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Project root helpers
+PROJECT_ROOT = Path(__file__).resolve().parent
+HISTORY_FILE = PROJECT_ROOT / 'workout_history.json'
+
+
+def resolve_project_path(*relative_parts):
+    """Resolve a path relative to the project root."""
+    return PROJECT_ROOT.joinpath(*relative_parts)
+
+
 # Constants
-DEMO_VIDEO_PATH = 'demo.mp4'
+DEMO_VIDEO_PATH = resolve_project_path('demo.mp4')
 FORM_VIDEO_PATHS = {
-    'Bicep Curl': 'curl_form.mp4',
-    'Push-Up': 'push_up_form.mp4',
-    'Squat': 'squat_form.mp4',
-    'Shoulder Press': 'shoulder_press_form.mp4'
+    'Bicep Curl': resolve_project_path('curl_form.mp4'),
+    'Push-Up': resolve_project_path('push_up_form.mp4'),
+    'Squat': resolve_project_path('squat_form.mp4'),
+    'Shoulder Press': resolve_project_path('shoulder_press_form.mp4')
 }
 
 # Color scheme
@@ -70,6 +86,132 @@ def calculate_bmr(gender, age, weight, height):
     else:
         bmr = 10 * weight + 6.25 * height - 5 * age - 161
     return bmr
+
+
+def generate_local_diet_plan(age, gender, weight, height, activity, goal, diet_type, meals_per_day, allergies):
+    """Generate a practical diet plan locally without any API key or AI service."""
+    allergies_text = f"Allergies: {allergies}" if allergies else "No known allergies"
+    bmr = calculate_bmr(gender, age, weight, height)
+
+    activity_multiplier = {
+        "Sedentary": 1.2,
+        "Lightly Active": 1.375,
+        "Moderately Active": 1.55,
+        "Very Active": 1.725,
+        "Extremely Active": 1.9,
+    }
+    tdee = bmr * activity_multiplier.get(activity, 1.2)
+
+    goal_adjustment = {
+        "Weight Loss": -500,
+        "Muscle Gain": 300,
+        "Maintenance": 0,
+        "Endurance": 200,
+    }
+    target_calories = int(tdee + goal_adjustment.get(goal, 0))
+
+    if goal.lower() == "weight loss":
+        protein_g = int(weight * 1.8)
+        carbs_g = int((target_calories * 0.35) / 4)
+        fats_g = int((target_calories * 0.25) / 9)
+    elif goal.lower() == "muscle gain":
+        protein_g = int(weight * 2.0)
+        carbs_g = int((target_calories * 0.45) / 4)
+        fats_g = int((target_calories * 0.25) / 9)
+    elif goal.lower() == "endurance":
+        protein_g = int(weight * 1.6)
+        carbs_g = int((target_calories * 0.55) / 4)
+        fats_g = int((target_calories * 0.20) / 9)
+    else:
+        protein_g = int(weight * 1.7)
+        carbs_g = int((target_calories * 0.40) / 4)
+        fats_g = int((target_calories * 0.25) / 9)
+
+    protein_focus = "high" if protein_g >= weight * 1.8 else "moderate"
+    carb_focus = "lower" if goal.lower() == "weight loss" else "higher" if goal.lower() == "endurance" else "balanced"
+
+    diet_type_lower = diet_type.lower()
+    vegetarian = any(token in diet_type_lower for token in ["vegetarian", "vegan", "keto", "mediterranean", "high-protein"])
+
+    meals = []
+    meal_names = ["Breakfast", "Lunch", "Dinner"]
+    if diet_type_lower == "vegan":
+        breakfast_food = "Vegan overnight oats with chia, banana, and almond butter"
+        lunch_food = "Tofu stir-fry with brown rice and vegetables"
+        dinner_food = "Chickpea and vegetable curry with quinoa"
+        snack_options = ["Apple with peanut butter", "Trail mix", "Hummus with carrots", "Edamame"]
+    elif diet_type_lower == "vegetarian":
+        breakfast_food = "Greek yogurt bowl with oats, banana, and nuts"
+        lunch_food = "Paneer or tofu bowl with rice and vegetables"
+        dinner_food = "Vegetable and lentil curry with roasted vegetables"
+        snack_options = ["Apple with peanut butter", "Boiled eggs", "Hummus with carrots", "Cottage cheese with fruit"]
+    elif diet_type_lower == "keto":
+        breakfast_food = "Scrambled eggs with spinach and avocado"
+        lunch_food = "Chicken salad bowl with olive oil dressing"
+        dinner_food = "Salmon with cauliflower rice and greens"
+        snack_options = ["Cheese cubes", "Olives", "Boiled eggs", "Avocado"]
+    elif diet_type_lower == "diabetic friendly":
+        breakfast_food = "Greek yogurt with berries and chia seeds"
+        lunch_food = "Grilled chicken salad with quinoa"
+        dinner_food = "Baked fish with roasted vegetables"
+        snack_options = ["Pear", "Cottage cheese", "Almonds", "Vegetables with hummus"]
+    else:
+        breakfast_food = "Greek yogurt bowl with oats, banana, and nuts"
+        lunch_food = "Grilled chicken or tofu bowl with rice and vegetables"
+        dinner_food = "Salmon or lentil curry with roasted vegetables"
+        snack_options = ["Apple with peanut butter", "Boiled eggs", "Hummus with carrots", "Cottage cheese with fruit"]
+
+    meals.append(f"- Breakfast: {breakfast_food}")
+    meals.append(f"- Lunch: {lunch_food}")
+    meals.append(f"- Dinner: {dinner_food}")
+
+    if diet_type_lower == "vegan":
+        snack_options = ["Apple with peanut butter", "Trail mix", "Hummus with carrots", "Edamame"]
+    elif diet_type_lower == "vegetarian":
+        snack_options = ["Apple with peanut butter", "Boiled eggs", "Hummus with carrots", "Cottage cheese with fruit"]
+    elif diet_type_lower == "keto":
+        snack_options = ["Cheese cubes", "Olives", "Boiled eggs", "Avocado"]
+    elif diet_type_lower == "diabetic friendly":
+        snack_options = ["Pear", "Cottage cheese", "Almonds", "Vegetables with hummus"]
+
+    snacks = snack_options
+
+    response = f"""
+## Your Personalized {diet_type} Diet Plan
+
+Hi {gender}! I built this plan around your goal to {goal.lower()} while keeping it practical for your {activity.lower()} lifestyle.
+
+**Profile**
+- Age: {age}
+- Weight: {weight} kg
+- Height: {height} cm
+- {allergies_text}
+
+### Daily Meal Structure
+{chr(10).join(meals)}
+- Snack: {snacks[0]}
+- Snack: {snacks[1]}
+
+### Nutrition Guidance
+- Daily calories: {target_calories} kcal
+- Protein: {protein_g} g
+- Carbohydrates: {carbs_g} g
+- Fats: {fats_g} g
+- Protein goal: {protein_focus} protein intake
+- Carbs: {carb_focus} carbohydrates for energy
+- Hydration: 2-3 liters of water daily
+- Portion tip: Use your hunger and fullness as a guide
+
+### Simple Weekly Tips
+- Keep meals regular and avoid skipping breakfast
+- Add vegetables to lunch and dinner
+- Choose whole grains, lean protein, and healthy fats
+- Aim for light movement most days
+
+### Quick Coach Advice
+Based on your preferences, I recommend keeping breakfast simple, planning lunch ahead, and using protein-rich snacks to stay full between meals.
+"""
+    return response
 
 
 def main():
@@ -332,7 +474,7 @@ def video_mode():
             # Save uploaded file temporarily
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
                 temp_file.write(video_file.read())
-                temp_path = temp_file.name
+                temp_path = str(temp_file.name)
         except Exception as e:
             st.error(f"❌ Error uploading video: {str(e)}")
             logger.error(f"Video upload error: {e}")
@@ -340,7 +482,7 @@ def video_mode():
     else:
         # Use demo video if available
         if os.path.exists(DEMO_VIDEO_PATH):
-            temp_path = DEMO_VIDEO_PATH
+            temp_path = str(DEMO_VIDEO_PATH)
         else:
             st.info("📌 Tip: Upload a video or place demo.mp4 in the root folder")
             return
@@ -364,7 +506,7 @@ def video_mode():
                 if os.path.exists(form_video):
                     st.markdown(f"#### Correct Form Guide")
                     with st.expander("View correct form"):
-                        st.video(form_video)
+                        st.video(str(form_video))
 
         # Analyze button
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -622,10 +764,9 @@ def webcam_mode():
                     # Log the workout history
                     import json
                     from datetime import datetime
-                    history_file = "workout_history.json"
                     history = []
-                    if os.path.exists(history_file):
-                        with open(history_file, "r") as f:
+                    if HISTORY_FILE.exists():
+                        with open(HISTORY_FILE, "r") as f:
                             try:
                                 history = json.load(f)
                             except:
@@ -635,7 +776,7 @@ def webcam_mode():
                         "exercise": selected_exercise,
                         "reps": st.session_state.current_rep
                     })
-                    with open(history_file, "w") as f:
+                    with open(HISTORY_FILE, "w") as f:
                         json.dump(history, f)
                         
                     st.session_state.webcam_running = False
@@ -666,32 +807,16 @@ def diet_plan_generator():
     - Health requirements
     """)
 
-    # Check API availability
-    if genai is None:
-        st.error("❌ Google Generative AI not installed.")
-        st.code("pip install google-generativeai", language="bash")
-        return
+    st.info("ℹ️ The diet planner works fully offline using a built-in nutrition plan. No API key is required.")
 
-    # Check for API key
+    api_key = None
     try:
         api_key = st.secrets.get("GEMINI_API_KEY")
-        if not api_key:
-            st.error("❌ GEMINI_API_KEY not found in secrets.")
-            with st.expander("📝 How to add API key"):
-                st.markdown("""
-                1. Create a `.streamlit/secrets.toml` file in your project root
-                2. Add your Gemini API key:
-                ```toml
-                GEMINI_API_KEY = "your-api-key-here"
-                ```
-                3. Get your free API key from: https://ai.google.dev/
-                """)
-            return
-        genai.configure(api_key=api_key)
-    except Exception as e:
-        st.error(f"❌ API configuration error: {str(e)}")
-        logger.error(f"API config error: {e}")
-        return
+    except Exception:
+        api_key = None
+
+    if api_key:
+        st.caption("Gemini key detected, but the built-in plan is being used so the feature remains available without AI quota limits.")
 
     # Collect user inputs
     st.markdown("### 👤 Your Information")
@@ -722,60 +847,35 @@ def diet_plan_generator():
         else:
             allergies = None
 
-    # Generate button
+    st.markdown("### 💬 Ask Your Diet Coach")
+    coach_prompt = st.text_area(
+        "What would you like help with?",
+        value=f"Create a simple {diet_type.lower()} meal plan for my goal to {goal.lower()} and activity level of {activity.lower()}."
+    )
+
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        generate_button = st.button("✨ Generate Diet Plan", use_container_width=True)
+        generate_button = st.button("✨ Ask Coach", use_container_width=True)
 
     if generate_button:
-        try:
-            with st.spinner("🤖 Generating your personalized diet plan..."):
-                model = genai.GenerativeModel("gemini-2.5-flash")
-                
-                allergies_text = f"Avoid: {allergies}" if allergies else "No allergies"
-                
-                prompt = f"""
-                Create a detailed, personalized {diet_type.lower()} diet plan with these specific criteria:
-                
-                **User Profile:**
-                - Age: {age} years old, {gender}
-                - Weight: {weight} kg, Height: {height} cm
-                - Activity Level: {activity}
-                - Fitness Goal: {goal}
-                - {allergies_text}
-                - Preferred meals per day: {meals_per_day}
-                
-                **Requirements:**
-                1. Create a realistic weekly meal plan ({meals_per_day} meals/day)
-                2. Include breakfast, lunch, dinner, and snacks with approximate calories
-                3. Add macros breakdown (protein, carbs, fats) for each meal
-                4. Include preparation time and difficulty level
-                5. Make recipes practical and easy to follow
-                6. Provide shopping list for the week
-                7. Add nutritional tips for their fitness goal
-                8. Include hydration recommendations
-                
-                Make the plan engaging, motivating, and achievable!
-                """
-                
-                response = model.generate_content(prompt)
-                
-                # Display success message
-                st.markdown("""
-                <div class='success-card'>
-                    <h3>✅ Diet Plan Generated Successfully!</h3>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Display the plan
-                st.markdown("---")
-                st.markdown(response.text)
-                
-                # Save plan option
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("💾 Save as Text"):
-                        plan_text = f"""
+        with st.spinner("🤖 Preparing your diet advice..."):
+            plan_text = generate_local_diet_plan(age, gender, weight, height, activity, goal, diet_type, meals_per_day, allergies)
+            if coach_prompt.strip():
+                plan_text = f"{plan_text}\n\n### Your Coach Note\n{coach_prompt.strip()}\n\nSuggested response: Keep meals consistent, include protein at every meal, choose water over sugary drinks, and adjust portion size based on fullness."
+            
+            st.markdown("""
+            <div class='success-card'>
+                <h3>✅ Diet Coach Response Ready!</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.markdown(plan_text)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💾 Save as Text"):
+                    plan_text_download = f"""
 PERSONALIZED DIET PLAN
 Generated for: {age}yo {gender} | {weight}kg | {height}cm
 
@@ -784,25 +884,17 @@ PROFILE:
 - Goal: {goal}
 - Diet Type: {diet_type}
 
-{response.text}
-                        """
-                        st.download_button(
-                            label="Download Diet Plan",
-                            data=plan_text,
-                            file_name="my_diet_plan.txt",
-                            mime="text/plain"
-                        )
-                
-                with col2:
-                    st.info("💡 Tip: Adjust portions based on your hunger and progress. Review weekly!")
-                
-        except Exception as e:
-            error_msg = str(e)
-            if "429" in error_msg or "Quota exceeded" in error_msg:
-                st.error("❌ Rate Limit Exceeded. You have used up your free Gemini API quota. Please wait a moment and try again, or use a different API key.")
-            else:
-                st.error(f"❌ Failed to generate diet plan: {error_msg}")
-            logger.error(f"Diet plan generation error: {e}")
+{plan_text}
+                    """
+                    st.download_button(
+                        label="Download Diet Plan",
+                        data=plan_text_download,
+                        file_name="my_diet_plan.txt",
+                        mime="text/plain"
+                    )
+            
+            with col2:
+                st.info("💡 Tip: Adjust portions based on your hunger and progress. Review weekly!")
 
 
 def progress_dashboard():
@@ -816,10 +908,9 @@ def progress_dashboard():
     # Load history
     import json
     import pandas as pd
-    history_file = "workout_history.json"
     
-    if os.path.exists(history_file):
-        with open(history_file, "r") as f:
+    if HISTORY_FILE.exists():
+        with open(HISTORY_FILE, "r") as f:
             try:
                 history = json.load(f)
             except:

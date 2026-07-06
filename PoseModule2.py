@@ -4,10 +4,14 @@ This module provides pose detection and analysis capabilities using MediaPipe's
 Pose solution. It can detect 33 body landmarks and calculate angles between joints.
 """
 
-import mediapipe as mp
 import math
 import cv2
 import time
+
+try:
+    import mediapipe as mp
+except Exception:
+    mp = None
 
 
 class posture_detector:
@@ -34,10 +38,21 @@ class posture_detector:
         self.detection_con = detection_con
         self.track_con = track_con
 
-        self.mp_draw = mp.solutions.drawing_utils
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(self.mode, self.up_body, self.smooth,
-                                     min_detection_confidence=self.detection_con, min_tracking_confidence= self.track_con)
+        self.mp_draw = None
+        self.mp_pose = None
+        self.pose = None
+        self.results = None
+
+        if mp is not None:
+            try:
+                from mediapipe.python import solutions as mp_solutions
+                self.mp_draw = mp_solutions.drawing_utils
+                self.mp_pose = mp_solutions.pose
+                self.pose = self.mp_pose.Pose(self.mode, self.up_body, self.smooth,
+                                             min_detection_confidence=self.detection_con,
+                                             min_tracking_confidence=self.track_con)
+            except Exception:
+                self.pose = None
     def find_person(self, img, draw=True):
         """Detect pose landmarks in image.
         
@@ -48,11 +63,15 @@ class posture_detector:
         Returns:
             Image with landmarks drawn (if draw=True)
         """
+        if self.pose is None:
+            self.results = None
+            return img
+
         # Recolor image to RGB
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.results = self.pose.process(img_rgb)
 
-        if self.results.pose_landmarks and draw:
+        if self.results.pose_landmarks and draw and self.mp_draw is not None:
             self.mp_draw.draw_landmarks(
                 img, self.results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
         return img
@@ -68,7 +87,7 @@ class posture_detector:
             list: List of [id, x, y] for each landmark, or empty list if no pose detected
         """
         self.landmark_list = []
-        if self.results.pose_landmarks:
+        if self.results and self.results.pose_landmarks:
             for id, lm in enumerate(self.results.pose_landmarks.landmark):
                 h, w, c = img.shape
                 cx, cy = int(lm.x * w), int(lm.y * h)

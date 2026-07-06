@@ -21,7 +21,11 @@ import logging
 import warnings
 from pathlib import Path
 import numpy as np
-import av
+
+try:
+    import av
+except ImportError:
+    av = None
 
 try:
     import cv2

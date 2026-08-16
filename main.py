@@ -42,10 +42,12 @@ except Exception:
     distanceCalculate = None
 
 try:
-    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+    import av
+    from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 except Exception:
+    av = None
     webrtc_streamer = None
-    VideoTransformerBase = None
+    VideoProcessorBase = object
 
 # Suppress unnecessary warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -402,10 +404,119 @@ def video_mode():
         st.info("📌 Upload a video to get started")
 
 
+DEFAULT_FRAME_WIDTH = 640
+DEFAULT_FRAME_HEIGHT = 480
+PUSHUP_ARM_THRESHOLD = 130
+PUSHUP_EXTENDED_THRESHOLD = 250
+SQUAT_DOWN_ANGLE = 80
+SQUAT_UP_ANGLE = 140
+SQUAT_LEFT_THRESHOLD = 240
+BICEP_DOWN_THRESHOLD = 230
+BICEP_UP_THRESHOLD = 310
+SHOULDER_DOWN_UPPER = 315
+SHOULDER_DOWN_LOWER = 40
+SHOULDER_UP_UPPER = 240
+SHOULDER_UP_LOWER = 130
+
+
+class AIExerciseVideoProcessor(VideoProcessorBase):
+    """Real-time WebRTC Video Processor for pose detection and rep counting."""
+    def __init__(self):
+        self.detector = pm.posture_detector() if pm is not None else None
+        self.counter = 0
+        self.stage = None
+        self.exercise_name = "Push-Up"
+        self.target_reps = 10
+
+    def set_exercise(self, name, target_reps):
+        if self.exercise_name != name:
+            self.counter = 0
+            self.stage = None
+        self.exercise_name = name
+        self.target_reps = target_reps
+
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        if self.detector is None or av is None:
+            return av.VideoFrame.from_ndarray(img, format="bgr24") if av is not None else img
+
+        img = self.detector.find_person(img)
+        landmark_list = self.detector.find_landmarks(img, False)
+
+        if landmark_list and len(landmark_list) > 0:
+            if self.exercise_name == "Push-Up":
+                right_arm_angle = self.detector.find_angle(img, 12, 14, 16)
+                right_elbow = landmark_list[14][1:]
+                cv2.putText(img, str(right_arm_angle),
+                            tuple(np.multiply(right_elbow, [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]).astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                right_shoulder = landmark_list[12][1:]
+                right_wrist = landmark_list[16][1:]
+                if distanceCalculate and distanceCalculate(right_shoulder, right_wrist) < PUSHUP_ARM_THRESHOLD:
+                    self.stage = "down"
+                if distanceCalculate and distanceCalculate(right_shoulder, right_wrist) > PUSHUP_EXTENDED_THRESHOLD and self.stage == "down":
+                    self.stage = "up"
+                    self.counter += 1
+
+            elif self.exercise_name == "Squat":
+                right_leg_angle = self.detector.find_angle(img, 24, 26, 28)
+                left_leg_angle = self.detector.find_angle(img, 23, 25, 27)
+                right_knee = landmark_list[26][1:]
+                cv2.putText(img, str(right_leg_angle),
+                            tuple(np.multiply(right_knee, [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]).astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                if right_leg_angle > SQUAT_UP_ANGLE and left_leg_angle < SQUAT_LEFT_THRESHOLD:
+                    self.stage = "down"
+                if right_leg_angle < SQUAT_DOWN_ANGLE and left_leg_angle > 270 and self.stage == 'down':
+                    self.stage = "up"
+                    self.counter += 1
+
+            elif self.exercise_name == "Bicep Curl":
+                right_arm_angle = self.detector.find_angle(img, 12, 14, 16)
+                left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
+                right_elbow = landmark_list[14][1:]
+                cv2.putText(img, str(right_arm_angle),
+                            tuple(np.multiply(right_elbow, [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]).astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                if left_arm_angle < BICEP_DOWN_THRESHOLD:
+                    self.stage = "down"
+                if left_arm_angle > BICEP_UP_THRESHOLD and self.stage == 'down':
+                    self.stage = "up"
+                    self.counter += 1
+
+            elif self.exercise_name == "Shoulder Press":
+                right_arm_angle = self.detector.find_angle(img, 12, 14, 16)
+                left_arm_angle = self.detector.find_angle(img, 11, 13, 15)
+                right_elbow = landmark_list[14][1:]
+                cv2.putText(img, str(right_arm_angle),
+                            tuple(np.multiply(right_elbow, [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]).astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                if right_arm_angle > SHOULDER_DOWN_UPPER and left_arm_angle < SHOULDER_DOWN_LOWER:
+                    self.stage = "down"
+                if right_arm_angle < SHOULDER_UP_UPPER and left_arm_angle > SHOULDER_UP_LOWER and self.stage == 'down':
+                    self.stage = "up"
+                    self.counter += 1
+
+        # Draw HUD Rep Counter
+        cv2.rectangle(img, (0, 0), (260, 73), (245, 117, 16), -1)
+        cv2.putText(img, 'REPS', (15, 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+        rep_text = f"{self.counter} / {self.target_reps}"
+        cv2.putText(img, rep_text, (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.4, (255, 255, 255), 2, cv2.LINE_AA)
+
+        if self.target_reps and self.counter >= self.target_reps:
+            cv2.rectangle(img, (0, 0), (DEFAULT_FRAME_WIDTH, 80), (0, 200, 83), -1)
+            cv2.putText(img, f'TARGET REACHED! ({self.counter}/{self.target_reps})', (20, 52),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3, cv2.LINE_AA)
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+
 def webcam_mode():
     """Live webcam exercise detection feature with AI Exercise Trainer."""
     st.markdown("<h2>🎥 Live WebCam AI Exercise Trainer</h2>", unsafe_allow_html=True)
-    st.markdown("Select your exercise and target reps below, then start your workout session.")
+    st.markdown("Select your exercise and target reps goal, then click **START** below to enable your camera.")
     st.markdown("---")
 
     col1, col2 = st.columns(2)
@@ -416,51 +527,43 @@ def webcam_mode():
 
     clean_exercise = get_clean_exercise_name(selected_exercise)
 
-    st.markdown("### 📷 Choose Camera Source")
-    cam_source = st.radio(
-        "Camera Connection Mode:",
-        ["🌐 Browser Camera (Recommended for Web App & Mobile)", "💻 Desktop Camera (Local OpenCV Execution)"],
-        horizontal=True
-    )
-
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if "Browser Camera" in cam_source:
-        if webrtc_streamer is not None:
-            st.info("👇 Click **SELECT DEVICE** or **START** below to enable your browser camera feed.")
-            webrtc_streamer(
-                key="fitness-webrtc",
-                media_stream_constraints={"video": True, "audio": False},
-                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-                async_processing=True,
-            )
-        else:
-            st.warning("⚠️ WebRTC browser camera streamer is not installed.")
-    else:
-        if CAMERA_AVAILABLE and cv2 is not None:
-            if st.button(f"🚀 Start Local Desktop Workout ({clean_exercise})", type="primary", use_container_width=True):
-                cap = cv2.VideoCapture(0)
-                if not cap.isOpened():
-                    st.error("❌ Could not open local webcam hardware. If you are accessing this app over the web, please switch to '🌐 Browser Camera' mode above!")
-                else:
-                    trainer = Exercise()
-                    completed_reps = 0
-                    if clean_exercise == "Push-Up":
-                        completed_reps = trainer.push_up(cap, mode='webcam', target_reps=target_reps)
-                    elif clean_exercise == "Squat":
-                        completed_reps = trainer.squat(cap, mode='webcam', target_reps=target_reps)
-                    elif clean_exercise == "Bicep Curl":
-                        completed_reps = trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
-                    elif clean_exercise == "Shoulder Press":
-                        completed_reps = trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
+    if webrtc_streamer is not None:
+        st.info("👇 Click **SELECT DEVICE** or **START** below to launch live AI pose tracking & rep counter.")
+        ctx = webrtc_streamer(
+            key=f"fitness-webrtc-{clean_exercise}",
+            video_processor_factory=AIExerciseVideoProcessor,
+            media_stream_constraints={"video": True, "audio": False},
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            async_processing=True,
+        )
+        if ctx and ctx.video_processor:
+            ctx.video_processor.set_exercise(clean_exercise, target_reps)
+    elif CAMERA_AVAILABLE and cv2 is not None:
+        if st.button(f"🚀 Start Local Desktop Workout ({clean_exercise})", type="primary", use_container_width=True):
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                st.error("❌ Could not open local webcam hardware.")
+            else:
+                trainer = Exercise()
+                completed_reps = 0
+                if clean_exercise == "Push-Up":
+                    completed_reps = trainer.push_up(cap, mode='webcam', target_reps=target_reps)
+                elif clean_exercise == "Squat":
+                    completed_reps = trainer.squat(cap, mode='webcam', target_reps=target_reps)
+                elif clean_exercise == "Bicep Curl":
+                    completed_reps = trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
+                elif clean_exercise == "Shoulder Press":
+                    completed_reps = trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
 
-                    if completed_reps is not None and completed_reps >= target_reps:
-                        st.balloons()
-                        st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
-                    elif completed_reps and completed_reps > 0:
-                        st.info(f"🏋️ Workout session finished! You completed {completed_reps} / {target_reps} {clean_exercise} reps.")
-        else:
-            st.warning("⚠️ OpenCV camera capture is unavailable in this environment.")
+                if completed_reps is not None and completed_reps >= target_reps:
+                    st.balloons()
+                    st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
+                elif completed_reps and completed_reps > 0:
+                    st.info(f"🏋️ Workout session finished! You completed {completed_reps} / {target_reps} {clean_exercise} reps.")
+    else:
+        st.warning("⚠️ Camera capture is unavailable in this environment.")
 
 
 

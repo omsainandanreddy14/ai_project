@@ -403,52 +403,64 @@ def video_mode():
 
 
 def webcam_mode():
-    """Live webcam exercise detection feature with AI Voice Coach."""
+    """Live webcam exercise detection feature with AI Exercise Trainer."""
     st.markdown("<h2>🎥 Live WebCam AI Exercise Trainer</h2>", unsafe_allow_html=True)
-    st.markdown("Select your exercise below and click **🚀 Start Live Workout** for real-time rep counting & AI audio form feedback.")
+    st.markdown("Select your exercise and target reps below, then start your workout session.")
     st.markdown("---")
 
     col1, col2 = st.columns(2)
     with col1:
         selected_exercise = st.selectbox("Choose Exercise", ["💪 Push-Up", "🦵 Squat", "🏋️ Bicep Curl", "🏋️‍♂️ Shoulder Press"])
     with col2:
-        target_reps = st.slider("Target Reps", min_value=1, max_value=50, value=10)
+        target_reps = st.slider("Target Reps Goal", min_value=1, max_value=50, value=10)
 
     clean_exercise = get_clean_exercise_name(selected_exercise)
 
+    st.markdown("### 📷 Choose Camera Source")
+    cam_source = st.radio(
+        "Camera Connection Mode:",
+        ["🌐 Browser Camera (Recommended for Web App & Mobile)", "💻 Desktop Camera (Local OpenCV Execution)"],
+        horizontal=True
+    )
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if CAMERA_AVAILABLE and cv2 is not None:
-        if st.button(f"🚀 Start Live Workout ({clean_exercise})", type="primary", use_container_width=True):
-            cap = cv2.VideoCapture(0)
-            trainer = Exercise()
-            completed_reps = 0
-            if clean_exercise == "Push-Up":
-                completed_reps = trainer.push_up(cap, mode='webcam', target_reps=target_reps)
-            elif clean_exercise == "Squat":
-                completed_reps = trainer.squat(cap, mode='webcam', target_reps=target_reps)
-            elif clean_exercise == "Bicep Curl":
-                completed_reps = trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
-            elif clean_exercise == "Shoulder Press":
-                completed_reps = trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
-
-            if completed_reps is not None and completed_reps >= target_reps:
-                st.balloons()
-                st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
-            elif completed_reps and completed_reps > 0:
-                st.info(f"🏋️ Workout session finished! You completed {completed_reps} / {target_reps} {clean_exercise} reps.")
-            else:
-                st.warning("⚠️ Local camera capture is unavailable on cloud servers. Please use the Browser Camera (WebRTC) streamer below!")
-    elif webrtc_streamer is not None:
-        st.info("Click 'Start Streaming' below to begin your workout with browser camera.")
-        webrtc_streamer(
-            key="fitness-webrtc",
-            media_stream_constraints={"video": True, "audio": False},
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-            async_processing=True,
-        )
+    if "Browser Camera" in cam_source:
+        if webrtc_streamer is not None:
+            st.info("👇 Click **SELECT DEVICE** or **START** below to enable your browser camera feed.")
+            webrtc_streamer(
+                key="fitness-webrtc",
+                media_stream_constraints={"video": True, "audio": False},
+                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+                async_processing=True,
+            )
+        else:
+            st.warning("⚠️ WebRTC browser camera streamer is not installed.")
     else:
-        st.warning("⚠️ Camera capture is unavailable in this environment.")
+        if CAMERA_AVAILABLE and cv2 is not None:
+            if st.button(f"🚀 Start Local Desktop Workout ({clean_exercise})", type="primary", use_container_width=True):
+                cap = cv2.VideoCapture(0)
+                if not cap.isOpened():
+                    st.error("❌ Could not open local webcam hardware. If you are accessing this app over the web, please switch to '🌐 Browser Camera' mode above!")
+                else:
+                    trainer = Exercise()
+                    completed_reps = 0
+                    if clean_exercise == "Push-Up":
+                        completed_reps = trainer.push_up(cap, mode='webcam', target_reps=target_reps)
+                    elif clean_exercise == "Squat":
+                        completed_reps = trainer.squat(cap, mode='webcam', target_reps=target_reps)
+                    elif clean_exercise == "Bicep Curl":
+                        completed_reps = trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
+                    elif clean_exercise == "Shoulder Press":
+                        completed_reps = trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
+
+                    if completed_reps is not None and completed_reps >= target_reps:
+                        st.balloons()
+                        st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
+                    elif completed_reps and completed_reps > 0:
+                        st.info(f"🏋️ Workout session finished! You completed {completed_reps} / {target_reps} {clean_exercise} reps.")
+        else:
+            st.warning("⚠️ OpenCV camera capture is unavailable in this environment.")
 
 
 

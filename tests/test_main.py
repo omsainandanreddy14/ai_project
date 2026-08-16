@@ -11,7 +11,12 @@ spec.loader.exec_module(main_module)
 
 class MainAppTests(unittest.TestCase):
     def test_calculate_bmr(self):
+        # Male formula: 10*70 + 6.25*170 - 5*25 + 5 = 700 + 1062.5 - 125 + 5 = 1642.5
         self.assertAlmostEqual(main_module.calculate_bmr("Male", 25, 70, 170), 1642.5)
+        self.assertAlmostEqual(main_module.calculate_bmr("👨 Male", 25, 70, 170), 1642.5)
+        # Female formula: 10*70 + 6.25*170 - 5*25 - 161 = 700 + 1062.5 - 125 - 161 = 1476.5
+        self.assertAlmostEqual(main_module.calculate_bmr("Female", 25, 70, 170), 1476.5)
+        self.assertAlmostEqual(main_module.calculate_bmr("👩 Female", 25, 70, 170), 1476.5)
 
     def test_resolve_project_path(self):
         resolved = main_module.resolve_project_path("main.py")

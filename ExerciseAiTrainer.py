@@ -1,4 +1,3 @@
-
 """Exercise AI Trainer Module.
 
 This module provides exercise detection and rep counting capabilities using MediaPipe
@@ -56,26 +55,29 @@ class Exercise:
                     tuple(np.multiply(landmark, [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]).astype(int)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
-    def repetitions_counter(self, img, counter):
-        """Display rep counter on image.
+    def repetitions_counter(self, img, counter, target_reps=10):
+        """Display rep counter on image with target rep tracking.
         
         Args:
             img: Input image to draw on
             counter: Current rep count
+            target_reps: Target number of reps
         """
-        cv2.rectangle(img, (0, 0), (225, 73), (245, 117, 16), -1)
+        cv2.rectangle(img, (0, 0), (260, 73), (245, 117, 16), -1)
         cv2.putText(img, 'REPS', (15, 12),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
-        cv2.putText(img, str(counter),
+        rep_text = f"{counter} / {target_reps}" if target_reps else str(counter)
+        cv2.putText(img, rep_text,
                     (10, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.4, (255, 255, 255), 2, cv2.LINE_AA)
 
-    def push_up(self, cap, mode='webcam'):
-        """Detect push-ups and count repetitions.
+    def push_up(self, cap, mode='webcam', target_reps=10):
+        """Detect push-ups and count repetitions until target is reached.
         
         Args:
             cap: Video capture object
             mode: 'webcam' or 'video' mode
+            target_reps: Target number of reps to complete
             
         Returns:
             str: Path to output video (video mode only)
@@ -117,7 +119,17 @@ class Exercise:
                     stage = "up"
                     counter += 1
 
-            self.repetitions_counter(img, counter)
+            self.repetitions_counter(img, counter, target_reps)
+
+            if target_reps and counter >= target_reps:
+                cv2.rectangle(img, (0, 0), (DEFAULT_FRAME_WIDTH, 80), (0, 200, 83), -1)
+                cv2.putText(img, f'TARGET REACHED! ({counter}/{target_reps})', (20, 52),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3, cv2.LINE_AA)
+                if mode == 'webcam':
+                    stframe.image(image_resize(image=img, width=640), channels='BGR', use_container_width=True)
+                elif mode == 'video':
+                    out.write(img)
+                break
 
             if mode == 'webcam':
                 img = image_resize(image=img, width=640)
@@ -131,12 +143,13 @@ class Exercise:
             return out_path
         cv2.destroyAllWindows()
 
-    def squat(self, cap, mode='webcam'):
-        """Detect squats and count repetitions.
+    def squat(self, cap, mode='webcam', target_reps=10):
+        """Detect squats and count repetitions until target is reached.
         
         Args:
             cap: Video capture object
             mode: 'webcam' or 'video' mode
+            target_reps: Target number of reps to complete
             
         Returns:
             str: Path to output video (video mode only)
@@ -176,7 +189,17 @@ class Exercise:
                     stage = "up"
                     counter += 1
 
-            self.repetitions_counter(img, counter)
+            self.repetitions_counter(img, counter, target_reps)
+
+            if target_reps and counter >= target_reps:
+                cv2.rectangle(img, (0, 0), (DEFAULT_FRAME_WIDTH, 80), (0, 200, 83), -1)
+                cv2.putText(img, f'TARGET REACHED! ({counter}/{target_reps})', (20, 52),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3, cv2.LINE_AA)
+                if mode == 'webcam':
+                    stframe.image(image_resize(image=img, width=640), channels='BGR', use_container_width=True)
+                elif mode == 'video':
+                    out.write(img)
+                break
 
             if mode == 'webcam':
                 img = image_resize(image=img, width=640)
@@ -190,12 +213,13 @@ class Exercise:
             return out_path
         cv2.destroyAllWindows()
 
-    def bicep_curl(self, cap, mode='webcam'):
-        """Detect bicep curls and count repetitions.
+    def bicep_curl(self, cap, mode='webcam', target_reps=10):
+        """Detect bicep curls and count repetitions until target is reached.
         
         Args:
             cap: Video capture object
             mode: 'webcam' or 'video' mode
+            target_reps: Target number of reps to complete
             
         Returns:
             str: Path to output video (video mode only)
@@ -235,7 +259,17 @@ class Exercise:
                     stage = "up"
                     counter += 1
 
-            self.repetitions_counter(img, counter)
+            self.repetitions_counter(img, counter, target_reps)
+
+            if target_reps and counter >= target_reps:
+                cv2.rectangle(img, (0, 0), (DEFAULT_FRAME_WIDTH, 80), (0, 200, 83), -1)
+                cv2.putText(img, f'TARGET REACHED! ({counter}/{target_reps})', (20, 52),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3, cv2.LINE_AA)
+                if mode == 'webcam':
+                    stframe.image(image_resize(image=img, width=640), channels='BGR', use_container_width=True)
+                elif mode == 'video':
+                    out.write(img)
+                break
 
             if mode == 'webcam':
                 img = image_resize(image=img, width=640)
@@ -249,12 +283,13 @@ class Exercise:
             return out_path
         cv2.destroyAllWindows()
 
-    def shoulder_press(self, cap, mode='webcam'):
-        """Detect shoulder presses and count repetitions.
+    def shoulder_press(self, cap, mode='webcam', target_reps=10):
+        """Detect shoulder presses and count repetitions until target is reached.
         
         Args:
             cap: Video capture object
             mode: 'webcam' or 'video' mode
+            target_reps: Target number of reps to complete
             
         Returns:
             str: Path to output video (video mode only)
@@ -294,7 +329,17 @@ class Exercise:
                     stage = "up"
                     counter += 1
 
-            self.repetitions_counter(img, counter)
+            self.repetitions_counter(img, counter, target_reps)
+
+            if target_reps and counter >= target_reps:
+                cv2.rectangle(img, (0, 0), (DEFAULT_FRAME_WIDTH, 80), (0, 200, 83), -1)
+                cv2.putText(img, f'TARGET REACHED! ({counter}/{target_reps})', (20, 52),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3, cv2.LINE_AA)
+                if mode == 'webcam':
+                    stframe.image(image_resize(image=img, width=640), channels='BGR', use_container_width=True)
+                elif mode == 'video':
+                    out.write(img)
+                break
 
             if mode == 'webcam':
                 img = image_resize(image=img, width=640)

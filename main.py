@@ -33,6 +33,11 @@ except ImportError:
     mp = None
 
 try:
+    import PoseModule2 as pm
+except Exception:
+    pm = None
+
+try:
     import ExerciseAiTrainer as exercise
     from ExerciseAiTrainer import Exercise
     from AiTrainer_utils import distanceCalculate

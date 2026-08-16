@@ -149,6 +149,7 @@ class Exercise:
             out.release()
             return out_path
         self.safe_destroy_all_windows()
+        return counter
 
     def squat(self, cap, mode='webcam', target_reps=10):
         """Detect squats and count repetitions until target is reached.
@@ -219,6 +220,7 @@ class Exercise:
             out.release()
             return out_path
         self.safe_destroy_all_windows()
+        return counter
 
     def bicep_curl(self, cap, mode='webcam', target_reps=10):
         """Detect bicep curls and count repetitions until target is reached.
@@ -289,6 +291,7 @@ class Exercise:
             out.release()
             return out_path
         self.safe_destroy_all_windows()
+        return counter
 
     def shoulder_press(self, cap, mode='webcam', target_reps=10):
         """Detect shoulder presses and count repetitions until target is reached.
@@ -359,3 +362,4 @@ class Exercise:
             out.release()
             return out_path
         self.safe_destroy_all_windows()
+        return counter

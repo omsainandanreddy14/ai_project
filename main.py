@@ -422,17 +422,23 @@ def webcam_mode():
         if st.button(f"🚀 Start Live Workout ({clean_exercise})", type="primary", use_container_width=True):
             cap = cv2.VideoCapture(0)
             trainer = Exercise()
+            completed_reps = 0
             if clean_exercise == "Push-Up":
-                trainer.push_up(cap, mode='webcam', target_reps=target_reps)
+                completed_reps = trainer.push_up(cap, mode='webcam', target_reps=target_reps)
             elif clean_exercise == "Squat":
-                trainer.squat(cap, mode='webcam', target_reps=target_reps)
+                completed_reps = trainer.squat(cap, mode='webcam', target_reps=target_reps)
             elif clean_exercise == "Bicep Curl":
-                trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
+                completed_reps = trainer.bicep_curl(cap, mode='webcam', target_reps=target_reps)
             elif clean_exercise == "Shoulder Press":
-                trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
+                completed_reps = trainer.shoulder_press(cap, mode='webcam', target_reps=target_reps)
 
-            st.balloons()
-            st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
+            if completed_reps is not None and completed_reps >= target_reps:
+                st.balloons()
+                st.success(f"🎉 Target Reached! Outstanding job completing your set of {target_reps} {clean_exercise}s!")
+            elif completed_reps and completed_reps > 0:
+                st.info(f"🏋️ Workout session finished! You completed {completed_reps} / {target_reps} {clean_exercise} reps.")
+            else:
+                st.warning("⚠️ Local camera capture is unavailable on cloud servers. Please use the Browser Camera (WebRTC) streamer below!")
     elif webrtc_streamer is not None:
         st.info("Click 'Start Streaming' below to begin your workout with browser camera.")
         webrtc_streamer(

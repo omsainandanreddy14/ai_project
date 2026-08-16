@@ -43,6 +43,13 @@ class Exercise:
         """Initialize the Exercise detector."""
         pass
 
+    def safe_destroy_all_windows(self):
+        """Safely destroy OpenCV windows if HighGUI is supported (headless container safe)."""
+        try:
+            cv2.destroyAllWindows()
+        except Exception:
+            pass
+
     def visualize_angle(self, img, angle, landmark):
         """Display angle value on image at landmark position.
         
@@ -141,7 +148,7 @@ class Exercise:
         if mode == 'video':
             out.release()
             return out_path
-        cv2.destroyAllWindows()
+        self.safe_destroy_all_windows()
 
     def squat(self, cap, mode='webcam', target_reps=10):
         """Detect squats and count repetitions until target is reached.
@@ -211,7 +218,7 @@ class Exercise:
         if mode == 'video':
             out.release()
             return out_path
-        cv2.destroyAllWindows()
+        self.safe_destroy_all_windows()
 
     def bicep_curl(self, cap, mode='webcam', target_reps=10):
         """Detect bicep curls and count repetitions until target is reached.
@@ -281,7 +288,7 @@ class Exercise:
         if mode == 'video':
             out.release()
             return out_path
-        cv2.destroyAllWindows()
+        self.safe_destroy_all_windows()
 
     def shoulder_press(self, cap, mode='webcam', target_reps=10):
         """Detect shoulder presses and count repetitions until target is reached.
@@ -351,4 +358,4 @@ class Exercise:
         if mode == 'video':
             out.release()
             return out_path
-        cv2.destroyAllWindows()
+        self.safe_destroy_all_windows()

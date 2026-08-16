@@ -679,7 +679,8 @@ def diet_plan_generator():
     if api_key:
         st.success("🤖 Gemini AI API Key Active! Personalized AI nutrition coaching enabled.")
     else:
-        st.error("⚠️ Gemini API key missing. Please configure GEMINI_API_KEY in `.streamlit/secrets.toml`.")
+        st.info("💡 Gemini API key is not configured in secrets. You can enter an API key below or set `GEMINI_API_KEY` in Streamlit Cloud Secrets (App Settings -> Secrets).")
+        api_key = st.text_input("🔑 Enter Gemini API Key (Optional)", type="password", help="Paste your Gemini API key here to generate AI plans instantly.")
 
     # Collect user inputs
     st.markdown("### 👤 Your Information")
@@ -721,17 +722,23 @@ def diet_plan_generator():
         generate_button = st.button("✨ Ask Coach", use_container_width=True)
 
     if generate_button:
-        with st.spinner("🤖 Preparing your personalized AI diet advice..."):
-            plan_text = generate_gemini_diet_plan(api_key, age, gender, weight, height, activity, goal, diet_type, meals_per_day, allergies, coach_prompt)
-            
-            st.markdown("""
-            <div class='success-card'>
-                <h3>✅ Diet Coach Response Ready!</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            st.markdown(plan_text)
+        if not api_key:
+            st.warning("⚠️ Please enter a Gemini API Key above or configure GEMINI_API_KEY in Streamlit Cloud Secrets (App Settings -> Secrets) to generate your AI plan!")
+        else:
+            with st.spinner("🤖 Preparing your personalized AI diet advice..."):
+                try:
+                    plan_text = generate_gemini_diet_plan(api_key, age, gender, weight, height, activity, goal, diet_type, meals_per_day, allergies, coach_prompt)
+                    
+                    st.markdown("""
+                    <div class='success-card'>
+                        <h3>✅ Diet Coach Response Ready!</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown("---")
+                    st.markdown(plan_text)
+                except Exception as e:
+                    st.error(f"❌ Error generating AI diet plan: {e}")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -900,7 +907,8 @@ def workout_plan_generator():
     if api_key:
         st.success("🤖 Gemini AI API Key Active! Personalized AI workout routines enabled.")
     else:
-        st.error("⚠️ Gemini API key missing. Please configure GEMINI_API_KEY in `.streamlit/secrets.toml`.")
+        st.info("💡 Gemini API key is not configured in secrets. You can enter an API key below or set `GEMINI_API_KEY` in Streamlit Cloud Secrets (App Settings -> Secrets).")
+        api_key = st.text_input("🔑 Enter Gemini API Key (Optional)", type="password", key="workout_api_key", help="Paste your Gemini API key here to generate AI plans instantly.")
 
     # Form inputs
     st.markdown("### 🎯 Your Workout Profile")
@@ -928,7 +936,7 @@ def workout_plan_generator():
 
     if generate_btn:
         if not api_key:
-            st.error("❌ Please configure GEMINI_API_KEY in `.streamlit/secrets.toml` to generate your workout plan.")
+            st.warning("⚠️ Please enter a Gemini API Key above or configure GEMINI_API_KEY in Streamlit Cloud Secrets (App Settings -> Secrets) to generate your workout plan!")
         else:
             with st.spinner("🤖 Building your 7-day personalized workout plan..."):
                 try:
